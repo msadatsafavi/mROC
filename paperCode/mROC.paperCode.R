@@ -8,6 +8,7 @@
 library(mROC)
 library(pROC)
 library(sqldf)
+library(haven)
 
 
 project_folder<-"M:/Projects/2018/Project.GhostROC/Code/"
@@ -151,7 +152,7 @@ stylized_example<-function()
 
 #################################Section 2: stylized simulation#################
 
-stylized_simulation<-function(n=10000)
+stylized_simulation<-function(n=10000, draw_validation=F)
 {
   
   x<-rnorm(n,0,1)
@@ -176,7 +177,7 @@ stylized_simulation<-function(n=10000)
   message("Scenario 1 c=",rr$auc)
   plot(1-rr$specificities,rr$sensitivities,xlim=c(0,1),ylim=c(0,1),type='l',xlab="False Positive",ylab="True Positive", main="Development and validation sample exchangable")
   lines(c(0,1),c(0,1),type='l',col='gray')
-  lines(1-r$specificities,r$sensitivities,col="blue")
+  if(draw_validation) lines(1-r$specificities,r$sensitivities,col="blue")
   lines(zz$FPs,zz$TPs,type='l',col="red")
   calibration_plot(pp,yy)
   
@@ -191,7 +192,7 @@ stylized_simulation<-function(n=10000)
   message("Scenario 2 c=",rr$auc)
   plot(1-rr$specificities,rr$sensitivities,xlim=c(0,1),ylim=c(0,1),type='l',xlab="False Positive",ylab="True Positive", main="Underdispersed predictor")
   lines(c(0,1),c(0,1),type='l',col='gray')
-  lines(1-r$specificities,r$sensitivities,col="blue")
+  if(draw_validation) lines(1-r$specificities,r$sensitivities,col="blue")
   lines(zz$FPs,zz$TPs,type='l',col="red")
   calibration_plot(pp,yy)
 
@@ -207,7 +208,7 @@ stylized_simulation<-function(n=10000)
   message("Scenario 3 c=",rr$auc)
   plot(1-rr$specificities,rr$sensitivities,xlim=c(0,1),ylim=c(0,1),type='l',xlab="False Positive",ylab="True Positive", main="Optimistic model")
   lines(c(0,1),c(0,1),type='l',col='gray')
-  lines(1-r$specificities,r$sensitivities,col="blue")
+  if(draw_validation) lines(1-r$specificities,r$sensitivities,col="blue")
   lines(zz$FPs,zz$TPs,type='l',col="red")
   calibration_plot(pp,yy)
 
@@ -224,7 +225,7 @@ stylized_simulation<-function(n=10000)
   message("Scenario 4 c=",rr$auc)
   plot(1-rr$specificities,rr$sensitivities,xlim=c(0,1),ylim=c(0,1),type='l',xlab="False Positive",ylab="True Positive", main="Underdispersed predictor & optimistic model")
   lines(c(0,1),c(0,1),type='l',col='gray')
-  lines(1-r$specificities,r$sensitivities,col="blue")
+  if(draw_validation) lines(1-r$specificities,r$sensitivities,col="blue")
   lines(zz$FPs,zz$TPs,type='l',col="red")
   calibration_plot(pp,yy)
 }
@@ -631,7 +632,7 @@ internal_formatter<-function(data, n_col=4)
 library("haven")
 
 
-case_study<-function(covars=c("gender","age10","oxygen","hosp1yr","sgrq10","fev1","nowsmk","LABA","LAMA"),only_severe=FALSE, do_recalibrate=FALSE)
+case_study<-function(covars=c("gender","age10","oxygen","hosp1yr","sgrq10","fev1","nowsmk","LABA","LAMA"),only_severe=T, second_axis=T, do_recalibrate=FALSE)
 {
   results<-list()
 
@@ -707,6 +708,22 @@ case_study<-function(covars=c("gender","age10","oxygen","hosp1yr","sgrq10","fev1
   lines(mres$FPs,mres$TPs,col="red",lwd=2,type='l')
   lines(c(0,1),c(0,1),col="gray",type='l')
   
+  ###Update 2020.11.12: add threshold to ROC
+  if(second_axis)
+  {
+    sps <- seq(from=0,to=1,by=0.2)
+    ths <- sps*0
+    for(i in 1:length(sps))
+    {
+      index <- which.min(abs(val_roc$specificities-sps[i]))
+      ths[i] <- val_roc$thresholds[index]
+    }
+    ths[1] <-1
+    ths[length(ths)]<-0
+    axis(side = 3, at=sps, labels=round(ths,digits = 2))
+  }
+  ###End of update
+  
   results$Pexac_p_dev<-mean(dev_preds)
   results$Oexac_p_dev<-mean(dev_data[,'event_bin'])
   results$Pexac_p_val<-mean(val_preds)
@@ -716,12 +733,14 @@ case_study<-function(covars=c("gender","age10","oxygen","hosp1yr","sgrq10","fev1
   
   x<-mROC_analysis(y=as.vector(val_data[,'event_bin']), p = val_preds, n_sim = settings$n_sim_inference_fast, inference = 1)
 
+###Update 2021.01.05: summary stats for predictors  
+  message("dev_data") 
+  print(summary(dev_data[,covars]))
+  message("val_data")
+  print(summary(val_data[,covars]))
+  
   return(c(results,x))
 }
-
-
-
-
 
 
 
