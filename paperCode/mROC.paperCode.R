@@ -7,9 +7,10 @@
 
 library(mROC)
 library(pROC)
-library(sqldf)
-library(haven)
-
+#library(sqldf)
+#library(haven)
+library(generalhoslem)
+library(GRcomp)
 
 project_folder<-"M:/Projects/2018/Project.GhostROC/Code/"
 setwd(project_folder)
@@ -256,14 +257,15 @@ stylized_simulation<-function(n=10000, draw_validation=F)
 
 
 #X_dist:mean and SD of the distirbution of the simple predictor. If NULL, then directly samples pi from standard uniform. 
-detailed_sim_linear<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=2*c(-0.25,-0.125,0,0.125,0.25),b1s=c(0.5,0.75,1,1.5,2),n_sim=1000, draw_plots="", GRuse=FALSE)
+detailed_sim_linear<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=c(-0.25,-0.125,0,0.125,0.25),b1s=c(0.5,0.75,1,1.5,2),n_sim=1000, draw_plots="", GRuse=FALSE)
 {
+  if(GRuse) GRconnect("GhostROC")
   pi<-runif(100)
   y<-rbinom(100,1,pi)
   template<-unlist(mROC_inference(y=y,p=pi,CI=FALSE, n_sim = 100,fast=TRUE))
   
-  out<-as.data.frame(matrix(NA, nrow =n_sim*length(sample_sizes)*length(b0s)*length(b1s),ncol = 4+length(template)+1))
-  colnames(out)<-c("i_sim","sample_size", "b0", "b1", names(template),"pval.LRT")
+  out<-as.data.frame(matrix(NA, nrow =n_sim*length(sample_sizes)*length(b0s)*length(b1s),ncol = 4+length(template)+2))
+  colnames(out)<-c("i_sim","sample_size", "b0", "b1", names(template),"pval.HLT","pval.LRT")
   
   if(draw_plots!="")
   {
@@ -309,7 +311,7 @@ detailed_sim_linear<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=2
                 pi_star_<-pi_star[o]
                 plot(c(0,pi_star_,1),c(0,pi_,1),xlab=(paste(ss,b0,b1,sep=",")), ann=FALSE, xaxt='n', yaxt='n', type='l', xlim=c(0,1), ylim=c(0,1), col="blue", lwd=2)
                 lines(c(0,1),c(0,1),col="gray",type='l')
-                text(0.50,0.075, sprintf("E(\U03C0*)=%0.2f",ifelse(b0==0 & b1==1, 0.5, mean(pi_star))))
+                text(0.50,0.075, sprintf("E(\U03C0*)=%0.2f",ifelse(b0==0 & b1==1, 0.5, mean(pi_star))),cex=1.5)
                 #text(0.75,0.5, sprintf("E(pi)=%s",format(mean(pi),digits = 3)))
                 title(sprintf(paste0("a=%s,b=%s"),format(b0,3),format(b1,3)))
               }
@@ -322,11 +324,11 @@ detailed_sim_linear<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=2
                 mAUC=mAUC(tmp)
                 B=calc_mROC_stats(y,pi_star)['B']
                 #text(0.5,0.5, sprintf("AUC:%s",format(AUC, digits = 2)),cex = 1) AUC is constant! 
-                text(0.5,0.3, sprintf("mAUC:%s",format(mAUC, digits = 2)),cex=1)
-                text(0.5,0.1, sprintf("B:%s",format(B, digits = 2)),cex=1)
+                text(0.5,0.3, sprintf("mAUC:%s",format(mAUC, digits = 2)),cex=1.5)
+                text(0.5,0.1, sprintf("B:%s",format(B, digits = 2)),cex=1.5)
                 lines(tmp$FPs,tmp$TPs,col="red")
                 lines(c(0,1),c(0,1),col="grey")
-                #title(sprintf("b0=%s,b1=%s",format(b0,3),format(b1,3)))
+                title(sprintf(paste0("a=%s,b=%s"),format(b0,3),format(b1,3)))
               }
             }
             
@@ -345,12 +347,14 @@ detailed_sim_linear<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=2
           #message(coefficients(f.ab))
           p.val.ab<-1-pchisq(f.0$deviance-f.ab$deviance,2)
           out[index,"pval.LRT"]<-p.val.ab
+          tmp <- logitgof(y, pi_star)
+          out[index,"pval.HLT"]<-1-pchisq(tmp$statistic,10)
           index<-index+1
         }
       }
     }
     
-    if((i%%10)==0 && GRuse)
+    if((i%%1)==0 && GRuse)
     {
       GRpush(out,overWrite = T)
       cat("Pushed at i=",i," \n")
@@ -366,15 +370,16 @@ detailed_sim_linear<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=2
 
 
 
-#X_dist:mean and SD of the distirbution of the simple predictor. If NULL, then directly samples pi from standard uniform. 
-detailed_sim_power<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=c(0,0.25,0.5), b1s=c(0.5,0.75,1,1.5,2), b2s=NULL, n_sim=1000, draw_plots="", GRuse=FALSE)
+#X_dist:mean and SD of the distribution of the simple predictor. If NULL, then directly samples pi from standard uniform. 
+detailed_sim_power<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=c(0,0.25,0.5), b1s=c(1/3,2/3,1,4/3,5/3), b2s=NULL, n_sim=1000, draw_plots="", GRuse=FALSE)
 {
+  set.seed(Sys.time())
   pi<-runif(100)
   y<-rbinom(100,1,pi)
   template<-unlist(mROC_inference(y=y,p=pi,CI=FALSE, n_sim = 100,fast=TRUE))
   
-  out<-as.data.frame(matrix(NA, nrow =n_sim*length(sample_sizes)*length(b0s)*length(b1s),ncol = 5+length(template)+1))
-  colnames(out)<-c("i_sim","sample_size", "b0", "b1", "b2", names(template), "pval.LRT")
+  out<-as.data.frame(matrix(NA, nrow =n_sim*length(sample_sizes)*length(b0s)*length(b1s),ncol = 6+length(template)+1))
+  colnames(out)<-c("i_sim","sample_size", "b0", "b1", "b2", names(template), "pval.LRT", "pval.HLT")
   
   if(draw_plots!="")
   {
@@ -439,11 +444,11 @@ detailed_sim_power<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=c(
                   lines(c(0,1),c(0,1),col="gray",type='l')
                   text(0.50,0.075, sprintf("E(\U03C0*)=%0.2f",ifelse(b0==0, 0.5, mean(pi_star))))
                   #text(0.75,0.5, sprintf("E(pi)=%s",format(mean(pi),digits = 3)))
-                  title(sprintf(paste0("a=%s,b=%s"),format(b0,3),format(b1,3)))
+                  title(sprintf(paste0("a=%s,b=%s"),fractions(b0),fractions(b1)))
                 }
                 if(draw_plots=="roc")
                 {
-                  plot(c(0,1),c(0,1),col="grey")
+                  plot(c(0,1),c(0,1),col="grey", ann=FALSE, xaxt='n', yaxt='n')
                   #for(i in 1:100)
                   {
                   #  yy<-rbinom(length(pi_star),1,pi_star)
@@ -462,7 +467,7 @@ detailed_sim_power<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=c(
                   sf<-stepfun(tmp$FPs,c(0,tmp$TPs))
                   lines(sf,col="red")
                   #lines(tmp$FPs,tmp$TPs,col="red")
-                  #title(sprintf("b0=%s,b1=%s",format(b0,3),format(b1,3)))
+                  title(sprintf(paste0("a=%s,b=%s"),fractions(b0),fractions(b1)))
                 }
                 if(draw_plots=="logit")
                 {
@@ -491,6 +496,8 @@ detailed_sim_power<-function(sample_sizes=c(100,250,1000), X_dist=c(0,1), b0s=c(
             #message(coefficients(f.ab))
             p.val.ab<-1-pchisq(f.0$deviance-f.ab$deviance,2)
             out[index,"pval.LRT"]<-p.val.ab
+            tmp <- logitgof(y, pi_star)
+            out[index,"pval.HLT"]<-1-pchisq(tmp$statistic,10)
             index<-index+1
           }
         }
@@ -559,62 +566,29 @@ process_detailed_sim_results<-function(detailed=F,dec_points=3)
 
 
 
-process_detailed_sim_results_graph<-function(data=aux$out, detailed=F, dec_points=3, dim1="b0", dim2="b1")
+process_detailed_sim_results_graph<-function(x, detailed=F, n_col=5, dec_points=3, level1="b0", level2="b1", level3="sample_size", rounding_error=0.001)
 {
-  n_d1<-dim(sqldf(paste0("SELECT DISTINCT ",dim1," FROM data")))[1]
-  n_d2<-dim(sqldf(paste0("SELECT DISTINCT ",dim2," FROM data")))[1]
+  require("sqldf")
+  l1_vals <- unique(x[,level1])
+  l2_vals <- unique(x[,level2])
   
-  sample_sizes<-sqldf("SELECT DISTINCT sample_size FROM data")
+  par(mfrow=c(length(l1_vals),length(l2_vals)))
+  par(mar=0*c(1,1,1,1))
   
-  par(mfrow=c(n_d1,n_d2))
-  par(mar=0.25*c(1,1,1,1))
-  
-  out<-GRcomp:::GRformatOutput(data, rGroupVars = c(dim1) , cGroupVars = c(dim2),func = internal_formatter)
-  write.table(out,"clipboard")
-  return(out)
+  for(i in l1_vals)
+    for(j in l2_vals)
+    {
+      str <- paste0("SELECT [",level3,"], AVG([pvals.A]<0.05), AVG([pvals.B]<0.05), AVG([pval]<0.05), AVG([pval.HLT]<0.05), AVG([pval.LRT]<0.05) FROM x WHERE ABS([",level1,"]-(",i,"))<",rounding_error," AND ABS([", level2,"]-(",j,"))<", rounding_error," GROUP BY [",level3,"]")
+      this_data <- sqldf(str)
+      my_palette <- c("#FFFFFF", "#C0C0C0", "#F17720", "#8080FF", "#D0D0FF")
+      level3_values <- this_data[,1]
+      values <- as.vector(rbind(t(this_data)[-1,],0))
+      bp<-barplot(values,xaxt='n', yaxt='n', space=0, ylim=c(-0.25,1.6),col=c(my_palette,rgb(1,0,0)))
+      text(x=0.4+c(0:17)*1,y=values+0.25,ifelse(values==0,"",round(values,2)),cex=2, srt=90)
+      text(x=c(2,8.5,15),y=-0.1,paste(level3_values),cex=2)
+      text(x=10,y=1.5,paste0(" a=", fractions(i)," | b=", fractions(j)),cex=2,col="#600000")
+    }
 }
-
-
-
-internal_formatter<-function(data, n_col=4)
-{
-  beautify<-function(value)
-  {
-    return(format(round(value,dec_points),digits = dec_points,nsmall=dec_points))
-  }
-  
-  #browser()
-  if(n_col==3)
-  {
-    y<-sqldf("SELECT sample_size, AVG([pvals.A]<0.05), AVG([pvals.B]<0.05), AVG([pval]<0.05) FROM data GROUP BY sample_size")
-    sample_sizes<-y[,1]
-    z<-as.vector(t(cbind(y[,-1],0)))
-    bp<-barplot(z,xaxt='n', yaxt='n', space=0, ylim=c(-0.25,1.5),col=c("pink","orange","purple","white"))
-    text(x=0.4+c(0:11)*1,y=z+0.25,ifelse(z==0,"",round(z,2)),cex=1, srt=90)
-    text(x=c(1.5,6,10),y=-0.1,paste(t(sample_sizes)))
-  }
-  else
-  {
-    y<-sqldf("SELECT sample_size, AVG([pvals.A]<0.05), AVG([pvals.B]<0.05), AVG([pval]<0.05), AVG([pval.LRT]<0.05) FROM data GROUP BY sample_size")
-    sample_sizes<-y[,1]
-    z<-as.vector(t(cbind(y[,-1],0)))
-    bp<-barplot(z,xaxt='n', yaxt='n', space=0, ylim=c(-0.25,1.5),col=c("pink","orange","purple","white","black"))
-    text(x=0.4+c(0:14)*1,y=z+0.25,ifelse(z==0,"",round(z,2)),cex=1, srt=90)
-    text(x=c(1.5,6,11),y=-0.1,paste(t(sample_sizes)))
-  }
-  
-  
-  return("")
-}
-
-
-
-
-
-
-
-
-
 
 
 
@@ -629,11 +603,12 @@ internal_formatter<-function(data, n_col=4)
 
 ##########################################Section 4: case study#####################################################
 
-library("haven")
+
 
 
 case_study<-function(covars=c("gender","age10","oxygen","hosp1yr","sgrq10","fev1","nowsmk","LABA","LAMA"),only_severe=T, second_axis=T, do_recalibrate=FALSE)
 {
+  require(haven)
   results<-list()
 
   trials_data<<-read_sas(data_file = "M:\\DATA\\2018\\MACRO+STATCOPE+OPTIMAL\\exacevents.sas7bdat")
@@ -739,8 +714,49 @@ case_study<-function(covars=c("gender","age10","oxygen","hosp1yr","sgrq10","fev1
   message("val_data")
   print(summary(val_data[,covars]))
   
+###Update 2021.07.10: HLT and LRT
+  logit.pi_star<-log(val_preds/(1-val_preds))
+  f.0<-glm(val_data$event_bin~-1+offset(logit.pi_star),family="binomial")
+  #f.a<-glm(y~offset(logit.pi_star),family="binomial")
+  f.ab<-glm(val_data$event_bin~logit.pi_star,family="binomial")
+  #message(coefficients(f.ab))
+  p.val.ab<-1-pchisq(f.0$deviance-f.ab$deviance,2)
+  results$val_pval.LRT<-p.val.ab
+  tmp <- logitgof(val_data$event_bin, val_preds)
+  results$val_pval.HLT<-1-pchisq(tmp$statistic,10)
+  
   return(c(results,x))
 }
 
 
+
+
+##############################################Section 5: an example of a modeately, but not strongly, calibrated model#################################333
+
+
+
+moderately_calibrated_model <- function()
+{
+  require(pROC)
+  require(mROC)
+  pred_model <- function(X1,X2)
+  {
+    (X1+X2)/2
+  }
+  
+  true_model <- function(X1,X2)
+  {
+    X1
+  }  
+
+  n_obs <- 10000
+  X1 <- runif(n_obs)
+  X2 <- runif(n_obs)
+  
+  pi <- true_model(X1,X2)
+  Y <- rbinom(n_obs,1,pi)
+  pi_star <- pred_model(X1,X2)
+  plot(mROC(pi_star),col="red")
+  lines(roc(Y,pi_star))
+}
 
