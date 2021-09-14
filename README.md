@@ -65,15 +65,15 @@ dev\_data has 500 rows. val\_data has 400 rows.
 
 Here are the first few rows of dev\_data:
 
-|         age |    severity | sex | comorbidity | y |
-| ----------: | ----------: | --: | ----------: | -: |
-|   0.5160477 |   0.2593806 |   0 |           1 | 1 |
-|   0.1572608 | \-1.2302576 |   0 |           0 | 0 |
-|   1.2804923 |   1.8332095 |   1 |           1 | 1 |
-|   1.1347625 |   1.3272407 |   0 |           0 | 1 |
-|   0.8355657 |   0.3424236 |   0 |           0 | 1 |
-|   0.3522012 |   2.1135965 |   0 |           1 | 1 |
-| \-0.5431004 | \-2.9125308 |   0 |           1 | 0 |
+|      age | severity | sex | comorbidity |   y |
+|---------:|---------:|----:|------------:|----:|
+| 55.16048 |        0 |   0 |           1 |   1 |
+| 51.57261 |        1 |   0 |           0 |   0 |
+| 62.80492 |        0 |   0 |           1 |   0 |
+| 61.34763 |        1 |   1 |           1 |   1 |
+| 58.35566 |        0 |   1 |           0 |   0 |
+| 53.52201 |        1 |   0 |           0 |   1 |
+| 44.56900 |        0 |   0 |           0 |   0 |
 
 We use the development data to fit a logistic regression model as our
 risk prediction model:
@@ -90,29 +90,29 @@ summary(reg)
     ## 
     ## Deviance Residuals: 
     ##     Min       1Q   Median       3Q      Max  
-    ## -2.3801  -0.9824   0.4624   0.8912   2.2420  
+    ## -1.2905  -0.8274  -0.6371   1.1583   2.1063  
     ## 
     ## Coefficients:
-    ##             Estimate Std. Error z value Pr(>|z|)    
-    ## (Intercept)  -0.9094     0.1752  -5.192 2.08e-07 ***
-    ## sex           1.1167     0.2545   4.388 1.14e-05 ***
-    ## age           0.5434     0.1136   4.785 1.71e-06 ***
-    ## severity      0.4414     0.0599   7.368 1.73e-13 ***
-    ## comorbidity   0.8953     0.2079   4.306 1.66e-05 ***
+    ##              Estimate Std. Error z value Pr(>|z|)    
+    ## (Intercept) -1.732851   0.564476  -3.070  0.00214 ** 
+    ## sex          0.557104   0.223634   2.491  0.01273 *  
+    ## age          0.005254   0.010643   0.494  0.62152    
+    ## severity    -0.557294   0.227586  -2.449  0.01434 *  
+    ## comorbidity  1.091916   0.209945   5.201 1.98e-07 ***
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
     ## 
     ## (Dispersion parameter for binomial family taken to be 1)
     ## 
-    ##     Null deviance: 686.86  on 499  degrees of freedom
-    ## Residual deviance: 564.21  on 495  degrees of freedom
-    ## AIC: 574.21
+    ##     Null deviance: 602.15  on 499  degrees of freedom
+    ## Residual deviance: 560.40  on 495  degrees of freedom
+    ## AIC: 570.4
     ## 
     ## Number of Fisher Scoring iterations: 4
 
 Given this, our risk prediction model can be written as:
 
-\(\bf{ logit(p)=-0.9094+1.1167*sex+0.5434*age+0.4414*severity+0.8953*comorbidity}\).
+$\\bf{ logit(p)=-1.7329+0.5571\*sex+0.0053\*age-0.5573\*severity+1.0919\*comorbidity}$.
 
 First, let’s compare the ROC and mROC in the development data
 
@@ -121,6 +121,8 @@ pred<-predict.glm(reg, type='response')
 
 library(pROC)
 ```
+
+    ## Warning: package 'pROC' was built under R version 4.1.1
 
     ## Type 'citation("pROC")' for a citation.
 
@@ -172,7 +174,7 @@ summary(pred)
 ```
 
     ##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    ## 0.02774 0.37566 0.57743 0.55688 0.73410 0.98611
+    ##  0.1007  0.1855  0.2794  0.2892  0.4051  0.5715
 
 Using the package pROC, let’s draw the validation ROC curve
 
@@ -218,6 +220,6 @@ res<-mROC_inference(val_data[,'y'],pred)
 res
 ```
 
-    ## Mean calibration statistic (A):0.08187776(Obs<Pred) (p:0.00011)
-    ## mROC/ROC equality statsitic (B):0.06583836 (p:0.00303)
-    ## Unified statistic:29.90896 (df:3.998648,p:5.099713e-06)
+    ## Mean calibration statistic (A):3.17053e-315(Obs>Pred) (p:0.01187)
+    ## mROC/ROC equality statsitic (B):0.436176 (p:0.00196)
+    ## Unified statistic:4.69855 (df:0.02999348,p:0.0004679777)
