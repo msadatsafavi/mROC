@@ -1,6 +1,6 @@
 set.seed(3344)
 
-create_data<-function(n,c_mus=c(0,1),c_sds=c(1,2),b_ps=c(0.25,0.5),covar_betas=c(b0=-1,b1=0.1,b2=0.2,b3=0.3,b4=0.4),covar_names=c("age","severity","sex","comorbidity"))
+create_data<-function(n,c_mus=c(50),c_sds=c(10),b_ps=c(0.33,0.25,0.5),covar_betas=c(b0=-1,b1=0.1,b2=0.2,b3=0.3,b4=0.4),covar_names=c("age","severity","sex","comorbidity"))
 {
   covars<-matrix(NA, nrow=n, ncol=length(c_mus)+length(b_ps))
   
@@ -26,7 +26,7 @@ create_data<-function(n,c_mus=c(0,1),c_sds=c(1,2),b_ps=c(0.25,0.5),covar_betas=c
 
 
 
-covar_betas=c(b0=-1,b1=0.5,b2=0.5,b3=1,b4=1)
+covar_betas=c(b0=-2,b1=0.5/50,b2=-0.5,b3=1,b4=1)
 
 dev_data<-create_data(500, covar_betas=covar_betas)
 save(dev_data,file=paste0(getwd(),"/data/dev_data.RData"))
